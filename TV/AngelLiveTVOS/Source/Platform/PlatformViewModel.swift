@@ -28,11 +28,14 @@ class PlatformViewModel {
 
     func refreshPlatforms(installedPluginIds: [String]) {
         let platformBaseByType = Dictionary(
-            uniqueKeysWithValues: LiveParseTools.getAllSupportPlatform().map { ($0.liveType, $0) }
+            LiveParseTools.getAllSupportPlatform().map { ($0.liveType, $0) },
+            uniquingKeysWith: { first, _ in first }
         )
         let installedPlatforms = SandboxPluginCatalog.availablePlatforms(installedPluginIds: installedPluginIds)
 
-        platformInfo = installedPlatforms.map { platform in
+        var seenPluginIds = Set<String>()
+        platformInfo = installedPlatforms.compactMap { platform -> Platformdescription? in
+            guard seenPluginIds.insert(platform.pluginId).inserted else { return nil }
             let fallbackTitle = LiveParseTools.getLivePlatformName(platform.liveType)
             let title = platformBaseByType[platform.liveType]?.livePlatformName ?? fallbackTitle
             let description = normalizedDescription(

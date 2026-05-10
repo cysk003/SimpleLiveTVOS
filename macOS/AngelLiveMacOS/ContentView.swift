@@ -14,6 +14,7 @@ enum TabSelection: Hashable {
     case favorite
     case allPlatforms
     case platform(Platformdescription)
+    case history
     case settings
     case search
 }
@@ -91,18 +92,15 @@ struct ContentView: View {
                         }
 
                         if pluginAvailability.hasAvailablePlugins {
-                            // macOS 26+ 支持 search role，macOS 15 需要普通 Tab
-                            if #available(macOS 26.0, *) {
-                                Tab("搜索", systemImage: "magnifyingglass", value: TabSelection.search, role: .search) {
-                                    SearchView()
-                                }
-                            } else {
-                                Tab(value: TabSelection.search) {
-                                    SearchView()
-                                } label: {
-                                    Label("搜索", systemImage: "magnifyingglass")
-                                }
+                            Tab(value: TabSelection.search) {
+                                SearchView()
+                            } label: {
+                                Label("搜索", systemImage: "magnifyingglass")
                             }
+                        }
+
+                        Tab("历史记录", systemImage: "clock.arrow.circlepath", value: TabSelection.history) {
+                            MacHistoryView()
                         }
 
                         Tab("设置", systemImage: "gearshape.fill", value: TabSelection.settings) {
