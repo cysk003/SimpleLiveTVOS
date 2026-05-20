@@ -244,10 +244,12 @@ private extension RoomPlayerView {
     }
 
     /// 流首次加载（URL 已就绪但未开始播放）。
+    /// 注意：.readyToPlay 是「准备好可以播」而非「已在播」，KSPlayer 此时尚未渲染帧。
+    /// 不能用 viewModel.isPlaying 二次过滤，否则 .readyToPlay 与 .buffering 之间会闪一帧黑。
     func isInitialStreamLoading(viewModel: RoomInfoViewModel) -> Bool {
         switch coordinator.state {
         case .initialized, .preparing, .readyToPlay:
-            return !viewModel.isPlaying
+            return true
         default:
             return false
         }
@@ -337,14 +339,14 @@ struct MacStreamLoadingOverlay: View {
         .padding(.vertical, 16)
         .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .task {
+            // KSPlayer 的 dynamicInfo.networkSpeed 仅在播放推进时（~1.5s 一次）更新，
+            // 初次加载阶段会一直停留在 0 → 只在拿到正数后再点亮，避免恒显 0 KB/s 的误导。
             while !Task.isCancelled {
-                if let speed = speedProvider() {
-                    await MainActor.run {
-                        bytesPerSecond = speed
-                        hasSpeed = true
-                    }
+                if let speed = speedProvider(), speed > 0 {
+                    bytesPerSecond = speed
+                    hasSpeed = true
                 }
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
             }
         }
     }

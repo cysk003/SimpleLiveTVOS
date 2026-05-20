@@ -494,11 +494,13 @@ struct PlayerContentView: View {
     private var isInitialStreamLoading: Bool {
         if useKSPlayer {
             #if canImport(KSPlayer)
-            let state = playerCoordinator.state
-            // 还没开始过播放：尚未进入 buffering/bufferFinished/paused/error
-            switch state {
+            // 按 KSPlayer 定义，state.isPlaying 仅 .buffering / .bufferFinished 为真；
+            // .readyToPlay 是「准备好可以播」而非「已在播」，此时还没渲染过帧。
+            // 必须把这三个 pre-play 状态都视为加载中，否则 .readyToPlay 一帧会撤掉 overlay
+            // 暴露黑屏，紧接着 .buffering 又把 overlay 盖回来 —— 视觉上闪一下黑。
+            switch playerCoordinator.state {
             case .initialized, .preparing, .readyToPlay:
-                return !viewModel.isPlaying
+                return true
             default:
                 return false
             }
@@ -673,15 +675,15 @@ struct StreamLoadingOverlay: View {
         .padding(.vertical, 16)
         .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .task {
-            // 1 秒一次轮询网速，KSPlayer 内部约 1.5s 更新一次，足够及时。
+            // KSPlayer 的 dynamicInfo.update() 在 changePlaybackTime 内部调用，节奏 ~1.5s，
+            // 且起播前根本不会触发 → 初次加载阶段 networkSpeed 恒为 0。
+            // 因此只在拿到正数速度后才点亮，否则继续显示「正在测速…」，避免一直显示 0 KB/s。
             while !Task.isCancelled {
-                if let speed = speedProvider() {
-                    await MainActor.run {
-                        bytesPerSecond = speed
-                        hasSpeed = true
-                    }
+                if let speed = speedProvider(), speed > 0 {
+                    bytesPerSecond = speed
+                    hasSpeed = true
                 }
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
             }
         }
     }
